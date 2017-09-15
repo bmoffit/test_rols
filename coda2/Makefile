@@ -3,7 +3,7 @@
 #    Makefile
 #
 # Description:
-#    Makefile for the coda primary and secondary readout lists 
+#    Makefile for the coda primary and secondary readout lists
 #    running on an Intel-based controller running Linux
 #
 #
@@ -21,7 +21,7 @@ ifneq (,$(findstring .so,$(MAKECMDGOALS)))
 	VMEROL	= $(MAKECMDGOALS)
 else
 # Plug in your default primary readout lists here..
-	VMEROL	= ti_master_list.so 
+	VMEROL	= ti_master_list.so
 endif
 
 # Add shared library dependencies here.  (jvme, ti, are already included)
@@ -54,7 +54,7 @@ endif
 
 DT:=\""$(shell date)"\"
 
-WARN_SUPPRESS		=  
+WARN_SUPPRESS		=
 WARN_SUPPRESS		+= -Wno-unused
 WARN_SUPPRESS		+= -Wno-format
 
@@ -85,15 +85,17 @@ else
 endif
 CFLAGS			+= -fno-builtin -D_GNU_TOOL -DVXWORKS -DVXWORKSPPC
 CFLAGS			+= -mcpu=604 -mlongcall
-CFLAGS			+= -fno-for-scope 
-CFLAGS			+= -fno-writable-strings 
+CFLAGS			+= -fno-for-scope
+CFLAGS			+= -fno-writable-strings
 CFLAGS			+= -fvolatile -DDAYTIME=$(DT)
 CFLAGS			+= -c -DCPU=PPC604 -w
-INCS			= -I. -isystem ${CODA}/common/include -isystem ${JVME_INC} 
+INCS			= -I. -isystem ${CODA}/common/include -isystem ${JVME_INC}
 DEPS			+= $(VMEROL:%.so=%.d)
 endif #LINUX
 
 CFLAGS			+= ${WARN_SUPPRESS}
+
+CCRL                    = ${CODA_BIN}/ccrl
 
 ifeq (${OS}, LINUX)
 all: $(VMEROL)
@@ -111,11 +113,15 @@ all: $(VMEROL:%.so=%.o)
 
 endif
 
-clean: 
+%.c: %.crl
+	@echo " CCRL   $@"
+	@${CCRL} $<
+
+clean:
 	@rm -f $(VMEROL) $(DEPS)
 
 realclean:
-	@rm -f *.so *.d *~ 
+	@rm -f *.so *.d *~
 
 ifeq (${OS}, LINUX)
 %.d: %.c

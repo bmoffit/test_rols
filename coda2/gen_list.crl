@@ -1,0 +1,174 @@
+#
+#  Readout list using s3610 as a trigger source
+#    - POLLING MODE
+#    Bryan Moffit, TJNAF 2016
+#
+
+readout list GEN_USER
+maximum 1024,512
+polling
+general readout
+
+extern int bigendian_out;
+%%
+#ifndef VXWORKSPPC
+#include "jvme.h"
+#endif
+#include "fadcLib.h"
+
+/* Prototype (defined at bottom) to provide a yes/no to data ready */
+unsigned int checkFadc();
+%%
+
+############################################################
+# DOWNLOAD
+############################################################
+begin download
+
+
+%%
+{
+#ifdef VXWORKSPPC
+  bigendian_out = 0;
+#else
+  bigendian_out = 1;
+  vmeOpenDefaultWindows();
+#endif
+
+  /* Initialize GEN variables */
+  GENPollAddr = (unsigned int *)&checkFadc;
+  GENPollMask = 1;
+  GENPollValue = 1;
+
+}
+%%
+
+  log inform "User Download Executed"
+
+end download
+
+############################################################
+# PRESTART
+############################################################
+begin prestart
+
+  variable jj, adc_id
+
+  log inform "Entering User Prestart"
+
+  init trig source GEN
+  link sync trig source GEN 1 to usrtrig and usrtrig_done
+  event type 1 then read GEN 1
+
+  log inform "User Prestart Executed"
+
+end prestart
+
+############################################################
+# PAUSE
+############################################################
+begin pause
+
+  CDODISABLE(GEN,1,0);
+
+  log inform "User Pause Executed"
+
+end pause
+
+############################################################
+# GO
+############################################################
+begin go
+
+  log inform "Entering User Go"
+%%
+{
+
+}
+%%
+
+  CDOENABLE(GEN,1,1);
+
+end go
+
+############################################################
+# END
+############################################################
+begin end
+
+  CDODISABLE(GEN,1,0);
+%%
+{
+
+}
+%%
+
+  log inform "User End Executed"
+
+end end
+
+############################################################
+# TRIGGER
+############################################################
+begin trigger usrtrig
+
+  variable ii
+
+ open event type EVTYPE of BT_UI4
+
+  output hex da000011
+  output hex 1
+  output hex 2
+  output hex da0000ff
+
+ close event
+
+end trigger
+
+begin done usrtrig
+
+end done
+
+begin done
+
+# Re-enable Trigger Source here
+%%
+{
+
+}
+%%
+
+end done
+
+############################################################
+# STATUS
+############################################################
+begin status
+
+end status
+
+%%
+unsigned int
+checkFadc(void)
+{
+  static int icall=0; /* Variable to keep track of calls, if you're interested */
+
+  icall++;
+
+  if(faBready(0) > 0)
+    return 1;
+  else
+    return 0;
+
+}
+%%
+
+#ifndef VXWORKSPPC
+%%
+__attribute__((destructor)) void end (void)
+{
+  printf("ROC Cleanup\n");
+  vmeCloseDefaultWindows();
+}
+%%
+#endif
