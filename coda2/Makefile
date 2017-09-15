@@ -17,11 +17,15 @@ else
         Q =
 endif
 
+ifneq (,$(findstring .so,$(MAKECMDGOALS)))
+	VMEROL	= $(MAKECMDGOALS)
+else
+# Plug in your default primary readout lists here..
+	VMEROL	= ti_master_list.so 
+endif
 
-# Plug in your primary readout lists here..
-VMEROL			= vme_list.so 
 # Add shared library dependencies here.  (jvme, ti, are already included)
-ROLLIBS			= -lremex
+ROLLIBS	+= -lremex
 
 ifeq (${ARCH}, PPC)
 	OS=VXWORKS
@@ -39,6 +43,9 @@ endif
 
 # For vxWorks, where to find jvme.h
 JVME_INC		= ${LINUXVME_INC}
+
+# Directory for more up to date includes
+MYINC	= feature-vxCompat_include
 
 ifdef LINUX
 LINUXVME_LIB		?= ${CODA}/extensions/linuxvme/libs
@@ -64,7 +71,9 @@ endif
 CFLAGS			+= -m32 -L. -L${LINUXVME_LIB}
 CFLAGS			+= -DLINUX -DDAYTIME=$(DT)
 LIBS			= -lrt -lpthread -ljvme -lti $(ROLLIBS)
-INCS			= -I. -isystem ${LINUXVME_INC} \
+INCS			= -I. \
+				-isystem $(MYINC) \
+				-isystem ${LINUXVME_INC} \
 				-isystem ${CODA}/common/include
 DEPS			+= $(VMEROL:%.so=%.d)
 else #VXWORKS
@@ -102,8 +111,11 @@ all: $(VMEROL:%.so=%.o)
 
 endif
 
-clean distclean:
-	@rm -f  $(VMEROL) $(SOBJS) $(CFILES) *~ 
+clean: 
+	@rm -f $(VMEROL) $(DEPS)
+
+realclean:
+	@rm -f *.so *.d *~ 
 
 ifeq (${OS}, LINUX)
 %.d: %.c
@@ -121,6 +133,8 @@ else
 	rm -f $@.$$$$
 endif
 
+ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 -include $(DEPS)
+endif
 
 .PHONY: all
