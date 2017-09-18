@@ -17,11 +17,16 @@ else
         Q =
 endif
 
+# Plug in your default primary readout lists here..
+VMEROL	= ti_master_list.so
+
+# Override VMEROL with command line goal
 ifneq (,$(findstring .so,$(MAKECMDGOALS)))
 	VMEROL	= $(MAKECMDGOALS)
 else
-# Plug in your default primary readout lists here..
-	VMEROL	= ti_master_list.so
+	ifneq (,$(findstring .o,$(MAKECMDGOALS)))
+		VMEROL	= $(MAKECMDGOALS)
+	endif
 endif
 
 # Add shared library dependencies here.  (jvme, ti, are already included)
@@ -90,7 +95,7 @@ CFLAGS			+= -fno-writable-strings
 CFLAGS			+= -fvolatile -DDAYTIME=$(DT)
 CFLAGS			+= -c -DCPU=PPC604 -w
 INCS			= -I. -isystem ${CODA}/common/include -isystem ${JVME_INC}
-DEPS			+= $(VMEROL:%.so=%.d)
+DEPS			+= $(VMEROL:%.o=%.d)
 endif #LINUX
 
 CFLAGS			+= ${WARN_SUPPRESS}
@@ -109,6 +114,7 @@ all: $(VMEROL:%.so=%.o)
 
 %.o: %.c
 	@echo " CC     $@"
+	@echo " VMEROL  $(VMEROL)"
 	${Q}${CC} ${CFLAGS} ${INCS} -DINIT_NAME=$(@:.o=__init) -o $@ $<
 
 endif
@@ -121,7 +127,7 @@ clean:
 	@rm -f $(VMEROL) $(DEPS)
 
 realclean:
-	@rm -f *.so *.d *~
+	@rm -f *.so *.d *.o *~
 
 ifeq (${OS}, LINUX)
 %.d: %.c

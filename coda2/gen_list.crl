@@ -1,5 +1,5 @@
 #
-#  Readout list using s3610 as a trigger source
+#  Readout list using fa125 as a trigger source
 #    - POLLING MODE
 #    Bryan Moffit, TJNAF 2016
 #
@@ -9,15 +9,21 @@ maximum 1024,512
 polling
 general readout
 
-extern int bigendian_out;
 %%
-#ifndef VXWORKSPPC
-#include "jvme.h"
+#ifdef VXWORKSPPC
+#include "vxWorks.h"
 #endif
-#include "fadcLib.h"
+#include "jvme.h"
+#include "fa125Lib.h"
 
 /* Prototype (defined at bottom) to provide a yes/no to data ready */
-unsigned int checkFadc();
+unsigned int check_fa125();
+
+/* Global vars */
+extern int nfa125;
+int faslot;
+extern int bigendian_out;
+
 %%
 
 ############################################################
@@ -28,6 +34,9 @@ begin download
 
 %%
 {
+  int stat, iFlag = 0, nmods = 18, iadc;
+  int ichan, i;
+
 #ifdef VXWORKSPPC
   bigendian_out = 0;
 #else
@@ -36,10 +45,48 @@ begin download
 #endif
 
   /* Initialize GEN variables */
-  GENPollAddr = (unsigned int *)&checkFadc;
+  GENPollAddr = (unsigned int *)&check_fa125;
   GENPollMask = 1;
   GENPollValue = 1;
 
+  iFlag |= FA125_INIT_INT_SUM_TRIG; /* Trigger Source */
+  iFlag |= FA125_INIT_VXS_CLKSRC;   /* Clock Source */
+  iFlag |= FA125_INIT_SKIP_FIRMWARE_CHECK; /*skip fw check */
+
+  stat = fa125Init(3 << 19, 1 << 19, nmods, iFlag);
+  if (stat != OK)
+    {
+      printf("ERROR: fa125Init failed \n");
+    }
+
+  for (iadc = 0; iadc < nfa125; iadc++)
+    {
+      faslot = fa125Slot(iadc);
+      fa125PowerOn(faslot);
+
+      for (ichan = 0; ichan < 72; ichan++)
+	{
+	  fa125SetOffset(faslot, ichan, 0x0400);
+	}
+
+      for (i = 0; i < 3; i++)
+	{
+	  fa125SetPulserAmplitude(0, i, 0x8000);
+	}
+
+      fa125SetCommonThreshold(faslot, 0x2);
+
+
+      fa125PrintTemps(faslot);
+
+      fa125SetBlocklevel(faslot, 1);
+
+    }
+
+  fa125ResetToken(0);
+  fa125GStatus(0);
+
+  
 }
 %%
 
@@ -83,7 +130,15 @@ begin go
   log inform "Entering User Go"
 %%
 {
+  int iadc;
 
+  for (iadc = 0; iadc < nfa125; iadc++)
+    {
+      faslot = fa125Slot(iadc);
+
+      fa125Reset(faslot, 0);
+      fa125Enable(faslot);
+    }
 }
 %%
 
@@ -99,6 +154,14 @@ begin end
   CDODISABLE(GEN,1,0);
 %%
 {
+  int iadc;
+
+  for (iadc = 0; iadc < nfa125; iadc++)
+    {
+      faslot = fa125Slot(iadc);
+      fa125PrintTemps(faslot);
+      fa125PowerOff(faslot);
+    }
 
 }
 %%
@@ -116,10 +179,24 @@ begin trigger usrtrig
 
  open event type EVTYPE of BT_UI4
 
-  output hex da000011
-  output hex 1
-  output hex 2
-  output hex da0000ff
+%%
+{
+  int dCnt, rflag = 1;
+
+  dCnt =
+    fa125ReadBlock(faslot, (volatile UINT32 *) rol->dabufp, 0x3000, rflag);
+
+  if (dCnt <= 0)
+    {
+      printf("No fa125 (%d) data or error.  dCnt = %d\n", faslot, dCnt);
+    }
+  else
+    {
+      rol->dabufp += dCnt;
+    }
+  
+}
+%%
 
  close event
 
@@ -149,13 +226,21 @@ end status
 
 %%
 unsigned int
-checkFadc(void)
+check_fa125(void)
 {
   static int icall=0; /* Variable to keep track of calls, if you're interested */
+  int ready = 0;
 
   icall++;
 
-  if(faBready(0) > 0)
+  ready = fa125Bready(0);
+
+  printf("%s: ready = %d\n",
+	 __func__, ready);
+
+  taskDelay(60);
+
+  if(ready > 0)
     return 1;
   else
     return 0;
