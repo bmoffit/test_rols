@@ -3,7 +3,6 @@
 #    - POLLING MODE
 #    Bryan Moffit, TJNAF 2016
 #
-
 readout list GEN_USER
 maximum 1024,512
 polling
@@ -15,6 +14,10 @@ general readout
 #endif
 #include "jvme.h"
 #include "fa125Lib.h"
+
+/* Replace 'general readout' polling routine with our own */
+#undef GEN_TEST
+#define GEN_TEST check_fa125
 
 /* Prototype (defined at bottom) to provide a yes/no to data ready */
 unsigned int check_fa125();
@@ -43,11 +46,6 @@ begin download
   bigendian_out = 1;
   vmeOpenDefaultWindows();
 #endif
-
-  /* Initialize GEN variables */
-  GENPollAddr = (unsigned int *)&check_fa125;
-  GENPollMask = 1;
-  GENPollValue = 1;
 
   iFlag |= FA125_INIT_INT_SUM_TRIG; /* Trigger Source */
   iFlag |= FA125_INIT_VXS_CLKSRC;   /* Clock Source */
