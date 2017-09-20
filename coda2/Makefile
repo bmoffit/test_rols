@@ -114,7 +114,6 @@ all: $(VMEROL:%.so=%.o)
 
 %.o: %.c
 	@echo " CC     $@"
-	@echo " VMEROL  $(VMEROL)"
 	${Q}${CC} ${CFLAGS} ${INCS} -DINIT_NAME=$(@:.o=__init) -o $@ $<
 
 endif
