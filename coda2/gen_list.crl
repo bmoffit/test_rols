@@ -3,11 +3,18 @@
 #    - POLLING MODE
 #    Bryan Moffit, TJNAF 2016
 #
+#   Compile with
+#     vxWorks:  make -B ARCH=PPC gen_list.o
+#     Linux  :  make -B gen_list.so
+#
+
 readout list GEN_USER
 maximum 1024,512
 polling
 general readout
 
+# DEBUG the readout
+const DEBUG=0
 %%
 #ifdef VXWORKSPPC
 #include "vxWorks.h"
@@ -16,7 +23,6 @@ general readout
 #include "fa125Lib.h"
 
 /* Replace 'general readout' polling routine with our own */
-#undef GEN_TEST
 #define GEN_TEST check_fa125
 
 /* Prototype (defined at bottom) to provide a yes/no to data ready */
@@ -34,6 +40,21 @@ extern int bigendian_out;
 ############################################################
 begin download
 
+#
+# Toss in some stuff from Naomis CRL
+#
+const PL=110 #pulse latency
+const NW=110 #window size
+const IE=100 #integral end
+const NPK=1  #n peaks
+const P1=4   #4  #event pedestal=2**P1
+const P2=4   #4  #local pedestal=2**P2
+const PG=4   #ped gap
+const H=500  #hit thres
+const TH=64 #high timing thres
+const TL=16  #low timing thres
+const IBIT=4  #integral scaling factor 2**4=16
+const ABIT=3  #maxamp scaling factor 2**3=8
 
 %%
 {
@@ -62,6 +83,7 @@ begin download
       faslot = fa125Slot(iadc);
       fa125PowerOn(faslot);
 
+      fa125SetProcMode(0,"CDC_long",PL,NW,IE,PG,NPK,P1,P2);
       for (ichan = 0; ichan < 72; ichan++)
 	{
 	  fa125SetOffset(faslot, ichan, 0x0400);
@@ -84,7 +106,7 @@ begin download
   fa125ResetToken(0);
   fa125GStatus(0);
 
-  
+
 }
 %%
 
@@ -154,6 +176,7 @@ begin end
 {
   int iadc;
 
+  fa125GStatus(0);
   for (iadc = 0; iadc < nfa125; iadc++)
     {
       faslot = fa125Slot(iadc);
@@ -179,7 +202,8 @@ begin trigger usrtrig
 
 %%
 {
-  int dCnt, rflag = 1;
+  int i, dCnt, rflag = 1;
+  vmeDmaConfig(2, 3, 1); // 3 for my slot Universe Chip.  5 for the Tempe Chip
 
   dCnt =
     fa125ReadBlock(faslot, (volatile UINT32 *) rol->dabufp, 0x3000, rflag);
@@ -191,8 +215,17 @@ begin trigger usrtrig
   else
     {
       rol->dabufp += dCnt;
+
+      if(DEBUG)
+	{
+	  for(i = 0; i < dCnt; i++)
+	    {
+	      fa125DecodeData(__the_event__->data[i]);
+	    }
+	}
     }
-  
+
+
 }
 %%
 
@@ -232,11 +265,6 @@ check_fa125(void)
   icall++;
 
   ready = fa125Bready(0);
-
-  printf("%s: ready = %d\n",
-	 __func__, ready);
-
-  taskDelay(60);
 
   if(ready > 0)
     return 1;
